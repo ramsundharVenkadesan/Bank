@@ -46,7 +46,7 @@ async def create_transaction(user:user_dependency ,db:db_dependency, transaction
         transaction_record = Transaction( # Create transaction record instance
             amount=transaction.amount, # Key-word argument to set amount column with data passed to the request-class instance by the user
             account_type=transaction.account_type, # Key-word argument to set account-type column with data passed to the request-class instance by the user
-            owner_id = user.get("username") # Use the dictionary returned by User-Dependency to retrieve his/her username (primary key on user's table) that is set as the foreign key
+            owner_id = user.get("Username") # Use the dictionary returned by User-Dependency to retrieve his/her username (primary key on user's table) that is set as the foreign key
         )
         db.add(transaction_record) # Add the record to the table
         db.commit() # Commit changes to the database
