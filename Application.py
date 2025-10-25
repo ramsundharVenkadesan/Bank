@@ -3,10 +3,15 @@ from Database import engine # Import database engine to create the database and 
 import Tables # Import tables in the database
 from API_Operations import router_object # Import the router to create a path to the API file
 from Authentication import router # Import the router to create a path to the Authentication file
+from Admin import admin_router
+from User import user_router
 
 
 application:FastAPI = FastAPI() # Create an instance to FastAPI class to start the server
 application.include_router(router) # Include the router object of the Authentication operations
 application.include_router(router_object) # Include the router object imported for API operations
+application.include_router(user_router)
+
+application.include_router(admin_router)
 
 Tables.Base.metadata.create_all(bind=engine) # Create all the tables defined in the file based on the engine passed to the arguments

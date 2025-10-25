@@ -41,12 +41,13 @@ class UserRequest(BaseModel): # Request class that inherits from Base-Model for 
     username:str = Field(min_length=1, max_length=50) # Field instance to set limits and constraints on input passed by client
     password:str = Field(min_length=1, max_length=50) # Field instance to set limits and constraints on input passed by client
     SSN:str = Field(min_length=9, max_length=9) # Field instance to set limits and constraints on input passed by client
+    role:str = Field(min_length=1, max_length=50, description='Admin or User') # Field instance to set role of the user created
 
     model_config = { # Configuration to set example values
         'json_schema_extra': { # JSON Schema
             'example': { # Example data
                 'first_name': 'John', 'last_name': 'Doe', 'email': 'johnDoe@none.com', # Placeholders for user input
-                'username': 'johnDoe', 'password': 'Password', 'SSN': '123456789' # Placeholders for user input
+                'username': 'johnDoe', 'password': 'Password', 'SSN': '123456789', 'role': 'User' # Placeholders for user input
             }
         }
     }
@@ -59,8 +60,8 @@ def verification(username:str, password:str, db:db_dependency): # Function to ve
         else: return False # The password passed to function and password stored in table do not match
     else: return False # The record was not found in database
 
-def create_access_token(username:str, ssn:str, expires_delta:timedelta): # Function to create a JSON token
-    encode:dict[str, str] = {'sub': username, 'id': ssn} # Payload part of the token (Second part) to identify the JWT
+def create_access_token(username:str, ssn:str, role:str, expires_delta:timedelta): # Function to create a JSON token
+    encode:dict[str, str] = {'sub': username, 'id': ssn, 'role': role} # Payload part of the token (Second part) to identify the JWT that contains username, SSN, and role of the user encoded
     time_now = datetime.now(timezone.utc) + expires_delta # Retrieve the current time and add it to the expiration time to specify how long the token is valid for
     encode.update({'exp': time_now}) # Add entry to the payload dictionary
     return jwt.encode(encode, secret_key, algorithm='HS256') # Base64 encode the payload with the secret key and SHA-256 algorithm
@@ -73,7 +74,8 @@ async def create_user(db:db_dependency, user:UserRequest): # Accept the Session 
         email=user.email, # Key-word argument to set email column with data set on the request-class instance by the user
         username=user.username, # Key-word argument to set username column with data set on the request-class instance by the user
         hashed_password=sha512(user.password.encode('utf-8')).digest().hex(), # Key-word argument to set password column by hashing (SHA 512 algorithm) the password set by the user on the request-instance
-        SSN=user.SSN # Key-word argument to set SSN column with data set on the request-class instance by the user
+        SSN=user.SSN, # Key-word argument to set SSN column with data set on the request-class instance by the user
+        role=user.role # Key-word argument to set role column with data set on the request-class instance by the user
     )
     db.add(user) # Add record to the table
     db.commit() # Commit changes to the database
@@ -93,7 +95,7 @@ async def login(db:db_dependency, form:oauth_dependency): # Accept the Session c
     if not user_record: # User record not found
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Incorrect username or password') # Raise HTTP-Exception to indicate user is not authorized (401)
     else: # User record was found
-        token = create_access_token(user_record.username, user_record.SSN, expires_delta=timedelta(minutes=30)) # Create a JWT token that is valid for 30 minutes from now
+        token = create_access_token(user_record.username, user_record.SSN, user_record.role, expires_delta=timedelta(minutes=30)) # Create a JWT token that is valid for 30 minutes from now
         return {'access_token': token, 'token_type': 'Bearer'} # Return the token that was Base64 encoded (Header.Payload.Signature) and type
 
 async def get_current_user(token:bearer_dependency): # Function that accepts the token sent by the client
@@ -101,7 +103,8 @@ async def get_current_user(token:bearer_dependency): # Function that accepts the
         payload:dict = jwt.decode(token, secret_key, algorithms=['HS256']) # Decode the payload on token with the secret and algorithm used to encode it (returned as dictionary)
         username:str = payload.get('sub') # Retrieve the subject from the payload
         ssn:str = payload.get('id') # Retrieve the SSN from the payload
+        user_role:str = payload.get('role')
         if username is None or ssn is None: # If either the subject or ID is not available
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Cannot Validate Credentials') # Raise HTTP-Exception to indicate user is not authorized (401) because it cannot be validated
-        else: return {'Username': username, 'SSN': ssn} # Return the username and SSN information from the decoded payload as a dictionary
+        else: return {'Username': username, 'SSN': ssn, 'Role': user_role} # Return the username, SSN, and role information from the decoded payload as a dictionary
     except JWTError: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Cannot Validate Credentials') # Catch JWT error because it cannot be decoded
